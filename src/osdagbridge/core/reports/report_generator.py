@@ -35,6 +35,11 @@ from .chap8 import ch8_design_log
 from .chap9 import references
 from .executive_summary import executive_summary
 
+try:
+  from osdagbridge.core.boq.boq_generator import calculate_material_quantities
+except ImportError:  # pragma: no cover – keeps report usable if BOQ module moves
+  calculate_material_quantities = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -750,6 +755,21 @@ def generate_report(payload, request):
         add_longtable_headers(ch5_design_checks(payload.design_checks, bridge))
     )
     parts.append(ch6_drawings(fig_paths))
+
+    # Restore material quantities (removed in the report refactor).
+    # chap7.py + the quantity charts read keys such as
+    # steel_girders_wt_total, concrete_deck_vol_total, rebar_deck_wt_total.
+    if calculate_material_quantities is not None:
+      try:
+        qty = calculate_material_quantities(inputs_dict, outputs_dict)
+        if isinstance(qty, dict) and qty:
+          outputs_dict = {**outputs_dict, **qty}
+          # Keep the bridge view in sync if any chapter later re-reads it.
+          if hasattr(bridge, "output_dict"):
+            bridge.output_dict = outputs_dict
+      except Exception as exc:
+        logger.warning("calculate_material_quantities failed: %s", exc)
+
     parts.append(
         add_longtable_headers(ch7_quantities(inputs_dict, outputs_dict))
     )

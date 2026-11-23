@@ -116,21 +116,24 @@ def ch3_loads(input_dict):
       impact_factor_str = "N/A"
 
   # Braking Force (IRC 6 Cl. 211.2)
+  # Prefer explicit lane count; otherwise fall back to 1 lane whenever any
+  # live-load vehicle is selected (matches original report behaviour).
   lanes = (
       input_dict.get(KEY_WC_LD_LANE_TABLE_COUNT)
       or input_dict.get("no_of_lanes")
       or input_dict.get("num_lanes")
       or input_dict.get("traffic_lanes")
+      or input_dict.get("loading.live_load.num_lanes")
+      or input_dict.get("carriageway.num_lanes")
   )
   braking_val_str = "N/A"
   braking_unit_str = "--"
   try:
+    lanes_int = None
     if lanes not in (None, ""):
       lanes_int = max(1, int(float(lanes)))
     elif vehicles:
       lanes_int = 1
-    else:
-      lanes_int = None
 
     if lanes_int is not None and hasattr(IRC6_2017, "cl_211_2_braking_force"):
       braking_force_t = IRC6_2017.cl_211_2_braking_force(lanes_int)
@@ -140,11 +143,28 @@ def ch3_loads(input_dict):
     elif input_dict.get("braking_load") not in (None, ""):
       braking_val_str = f"{float(input_dict.get('braking_load')):.2f}"
       braking_unit_str = "kN"
+    elif input_dict.get("loading.live_load.braking_load") not in (None, ""):
+      braking_val_str = f"{float(input_dict.get('loading.live_load.braking_load')):.2f}"
+      braking_unit_str = "kN"
   except Exception:
     braking_val_str = "N/A"
     braking_unit_str = "--"
 
-  # Centrifugal Force (IRC 6 Cl. 212 if available)
+  # Eccentricity of braking / live load (shown next to braking when available)
+  ecc_raw = (
+      input_dict.get("bl_eccentricity")
+      or input_dict.get("loading.live_load.eccentricity")
+      or input_dict.get("KEY_BL_ECCENTRICITY")
+      or input_dict.get("KEY_LL_ECCENTRICITY")
+  )
+  if ecc_raw not in (None, "") and braking_val_str != "N/A":
+    try:
+      ecc_m = float(ecc_raw)
+      braking_val_str = f"{braking_val_str}; e = {ecc_m:.2f} m"
+    except (TypeError, ValueError):
+      pass
+
+  # Centrifugal Force (IRC 6 Cl. 212 – method may not exist on all builds)
   centrifugal_val_str = "N/A"
   centrifugal_unit_str = "--"
   try:
@@ -152,6 +172,7 @@ def ch3_loads(input_dict):
         input_dict.get("centrifugal_force")
         or input_dict.get("centrifugal_load")
         or input_dict.get("LL_CENTRIFUGAL_FORCE")
+        or input_dict.get("loading.live_load.centrifugal_force")
     )
     if cf_direct not in (None, ""):
       centrifugal_val_str = f"{float(cf_direct):.2f}"

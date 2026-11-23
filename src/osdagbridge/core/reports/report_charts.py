@@ -1,4 +1,10 @@
 import os
+
+# Force non-interactive backend so charts can be generated safely from the
+# report worker thread (avoids "Starting a Matplotlib GUI outside of the
+# main thread will likely fail" and possible hangs).
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from osdagbridge.core.reports.styles import CHART, COLORS
